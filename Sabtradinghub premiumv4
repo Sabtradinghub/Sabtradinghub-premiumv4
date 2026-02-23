@@ -1,0 +1,354 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+
+local player = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local ITEM_FOLDER = workspace:FindFirstChild("Items")
+
+------------------------------------------------
+-- 🔊 CLICK SOUND
+------------------------------------------------
+local function playClick()
+	local sound = Instance.new("Sound")
+	sound.SoundId = "rbxassetid://5419098677"
+	sound.Volume = 1
+	sound.Parent = player:WaitForChild("PlayerGui")
+	sound:Play()
+	sound.Ended:Connect(function()
+		sound:Destroy()
+	end)
+end
+
+------------------------------------------------
+-- UI HELPERS
+------------------------------------------------
+local function roundUI(uiObject, radius)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, radius)
+	corner.Parent = uiObject
+end
+
+local function addButtonEffects(button)
+	local normalSize = button.Size
+	local hoverSize = UDim2.new(
+		normalSize.X.Scale, normalSize.X.Offset + 6,
+		normalSize.Y.Scale, normalSize.Y.Offset + 4
+	)
+
+	button.MouseEnter:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.15), {Size = hoverSize}):Play()
+	end)
+
+	button.MouseLeave:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.15), {Size = normalSize}):Play()
+	end)
+
+	button.MouseButton1Down:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.08), {
+			Size = UDim2.new(
+				normalSize.X.Scale, normalSize.X.Offset - 4,
+				normalSize.Y.Scale, normalSize.Y.Offset - 2
+			)
+		}):Play()
+	end)
+
+	button.MouseButton1Up:Connect(function()
+		TweenService:Create(button, TweenInfo.new(0.1), {Size = hoverSize}):Play()
+	end)
+end
+
+------------------------------------------------
+-- 🔑 DAILY KEY
+------------------------------------------------
+local SECRET = "SABTRADING"
+
+local function getDailyKey()
+	local t = os.date("!*t")
+	return SECRET .. t.year .. t.yday
+end
+
+local PREMIUM_KEY = getDailyKey()
+
+------------------------------------------------
+-- BLUR (KEY SYSTEM ONLY)
+------------------------------------------------
+local blur = Instance.new("BlurEffect")
+blur.Size = 0
+blur.Parent = Lighting
+
+local function setBlur(state)
+	TweenService:Create(blur, TweenInfo.new(0.3), {Size = state and 24 or 0}):Play()
+end
+
+local function createKeyGUI(onSuccess)
+	setBlur(true)
+
+	local gui = Instance.new("ScreenGui", player.PlayerGui)
+	gui.Name = "KeySystemGui"
+	gui.ResetOnSpawn = false
+
+	local frame = Instance.new("Frame", gui)
+	frame.Size = UDim2.new(0,300,0,180)
+	frame.Position = UDim2.new(0.5,-150,0.5,-90)
+	frame.BorderSizePixel = 0
+	frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+	frame.Active = true
+	frame.Draggable = true
+	roundUI(frame,16)
+
+	local title = Instance.new("TextLabel", frame)
+	title.Size = UDim2.new(1,0,0,40)
+	title.BackgroundTransparency = 1
+	title.Text = "Enter Premium Key"
+	title.TextColor3 = Color3.new(1,1,1)
+	title.TextScaled = true
+	title.Font = Enum.Font.GothamBold
+
+	local box = Instance.new("TextBox", frame)
+	box.Size = UDim2.new(0,260,0,40)
+	box.Position = UDim2.new(0.5,-130,0,60)
+	box.PlaceholderText = "Enter key..."
+	box.Text = ""
+	box.TextScaled = true
+	box.BackgroundColor3 = Color3.fromRGB(0,0,0)
+	box.TextColor3 = Color3.new(1,1,1)
+	roundUI(box,10)
+
+	local button = Instance.new("TextButton", frame)
+	button.Size = UDim2.new(0,200,0,40)
+	button.Position = UDim2.new(0.5,-100,0,115)
+	button.Text = "UNLOCK"
+	button.TextScaled = true
+	button.BackgroundColor3 = Color3.fromRGB(170,0,0)
+	button.TextColor3 = Color3.new(1,1,1)
+	roundUI(button,12)
+	addButtonEffects(button)
+
+	button.MouseButton1Click:Connect(function()
+		playClick()
+		if box.Text == PREMIUM_KEY then
+			gui:Destroy()
+			setBlur(false)
+			onSuccess()
+		else
+			button.Text = "WRONG KEY"
+			task.wait(1)
+			button.Text = "UNLOCK"
+		end
+	end)
+end
+
+------------------------------------------------
+-- MAIN SCRIPT
+------------------------------------------------
+local function startScript()
+
+local infJumpEnabled = false
+local noclipEnabled = false
+local ESPEnabled = false
+local basePosition = Vector3.new(0,10,0)
+
+------------------------------------------------
+-- NOCLIP
+------------------------------------------------
+local function setNoClip(state)
+	local char = player.Character
+	if not char then return end
+	for _, part in pairs(char:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CanCollide = not state
+		end
+	end
+end
+
+RunService.Stepped:Connect(function()
+	if noclipEnabled then
+		setNoClip(true)
+	end
+end)
+
+------------------------------------------------
+-- ESP HELPERS
+------------------------------------------------
+local function createBillboard(target)
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromScale(4,3)
+	gui.StudsOffset = Vector3.new(0,3,0)
+	gui.AlwaysOnTop = true
+
+	local label = Instance.new("TextLabel", gui)
+	label.Size = UDim2.fromScale(1,1)
+	label.BackgroundTransparency = 1
+	label.TextScaled = true
+	label.TextStrokeTransparency = 0
+	label.TextColor3 = Color3.new(1,1,1)
+
+	gui.Adornee = target
+	gui.Parent = target
+	return gui, label
+end
+
+local function createHighlight(model, color)
+	local h = Instance.new("Highlight")
+	h.FillColor = color
+	h.OutlineColor = Color3.new(1,1,1)
+	h.FillTransparency = 0.5
+	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	h.Parent = model
+	return h
+end
+
+------------------------------------------------
+-- PLAYER ESP
+------------------------------------------------
+local function addPlayerESP(plr)
+	if plr == player then return end
+
+	local function onChar(char)
+		local root = char:WaitForChild("HumanoidRootPart")
+		local hum = char:WaitForChild("Humanoid")
+
+		local highlight = createHighlight(char, Color3.fromRGB(255,0,0))
+		local gui, label = createBillboard(root)
+
+		RunService.RenderStepped:Connect(function()
+			gui.Enabled = ESPEnabled
+			highlight.Enabled = ESPEnabled
+			if not ESPEnabled or hum.Health <= 0 then return end
+			local dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude)
+			label.Text = plr.Name.."\n❤️ "..math.floor(hum.Health).."\n📏 "..dist.."m"
+		end)
+	end
+
+	if plr.Character then onChar(plr.Character) end
+	plr.CharacterAdded:Connect(onChar)
+end
+
+for _, p in pairs(Players:GetPlayers()) do
+	addPlayerESP(p)
+end
+Players.PlayerAdded:Connect(addPlayerESP)
+
+------------------------------------------------
+-- GUI
+------------------------------------------------
+local function setupGUI()
+	local hubGui = Instance.new("ScreenGui", player.PlayerGui)
+	hubGui.Name = "Premium SabTrading Hub"
+	hubGui.ResetOnSpawn = false
+
+	local panel = Instance.new("Frame", hubGui)
+	panel.Size = UDim2.new(0,250,0,340)
+	panel.Position = UDim2.new(-1,0,0.2,0)
+	panel.BorderSizePixel = 0
+	panel.BackgroundColor3 = Color3.fromRGB(40,40,40)
+	panel.Active = true
+	panel.Draggable = true
+	roundUI(panel,16)
+
+	local title = Instance.new("TextLabel", panel)
+	title.Size = UDim2.new(1,0,0,40)
+	title.BackgroundTransparency = 1
+	title.Text = "Premium SabTrading Hub"
+	title.TextColor3 = Color3.new(1,1,1)
+	title.TextScaled = true
+	title.Font = Enum.Font.GothamBold
+
+	local function makeButton(text, y)
+		local btn = Instance.new("TextButton", panel)
+		btn.Size = UDim2.new(0,200,0,40)
+		btn.Position = UDim2.new(0.5,-100,0,y)
+		btn.Text = text..": OFF"
+		btn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+		btn.TextColor3 = Color3.new(1,1,1)
+		btn.TextScaled = true
+		roundUI(btn,12)
+		addButtonEffects(btn)
+		return btn
+	end
+
+	local jumpBtn = makeButton("Infinite Jump", 50)
+	jumpBtn.MouseButton1Click:Connect(function()
+		playClick()
+		infJumpEnabled = not infJumpEnabled
+		jumpBtn.Text = "Infinite Jump: "..(infJumpEnabled and "ON" or "OFF")
+		jumpBtn.BackgroundColor3 = infJumpEnabled and Color3.fromRGB(0,170,0) or Color3.fromRGB(170,0,0)
+	end)
+
+	local noclipBtn = makeButton("NoClip", 100)
+	noclipBtn.MouseButton1Click:Connect(function()
+		playClick()
+		noclipEnabled = not noclipEnabled
+		noclipBtn.Text = "NoClip: "..(noclipEnabled and "ON" or "OFF")
+		noclipBtn.BackgroundColor3 = noclipEnabled and Color3.fromRGB(0,170,0) or Color3.fromRGB(170,0,0)
+	end)
+
+	local espBtn = makeButton("ESP",150)
+	espBtn.MouseButton1Click:Connect(function()
+		playClick()
+		ESPEnabled = not ESPEnabled
+		espBtn.Text = "ESP: "..(ESPEnabled and "ON" or "OFF")
+		espBtn.BackgroundColor3 = ESPEnabled and Color3.fromRGB(0,170,0) or Color3.fromRGB(170,0,0)
+	end)
+
+	local tpBtn = Instance.new("TextButton", panel)
+	tpBtn.Size = UDim2.new(0,200,0,40)
+	tpBtn.Position = UDim2.new(0.5,-100,0,200)
+	tpBtn.Text = "Instant Steal"
+	tpBtn.BackgroundColor3 = Color3.fromRGB(80,0,120)
+	tpBtn.TextColor3 = Color3.new(1,1,1)
+	tpBtn.TextScaled = true
+	roundUI(tpBtn,12)
+	addButtonEffects(tpBtn)
+
+	tpBtn.MouseButton1Click:Connect(function()
+		playClick()
+		local char = player.Character
+		if char and char:FindFirstChild("HumanoidRootPart") then
+			char.HumanoidRootPart.CFrame = CFrame.new(basePosition)
+		end
+	end)
+
+	local toggleBtn = Instance.new("TextButton", hubGui)
+	toggleBtn.Size = UDim2.new(0,200,0,40)
+	toggleBtn.Position = UDim2.new(0,10,0.1,0)
+	toggleBtn.Text = "Premium SabTrading Hub"
+	toggleBtn.BackgroundColor3 = Color3.new(0,0,0)
+	toggleBtn.TextColor3 = Color3.new(1,1,1)
+	toggleBtn.TextScaled = true
+	roundUI(toggleBtn,12)
+	addButtonEffects(toggleBtn)
+
+	local open = false
+	toggleBtn.MouseButton1Click:Connect(function()
+		playClick()
+		local goal = open and UDim2.new(-1,0,0.2,0) or UDim2.new(0.05,0,0.2,0)
+		TweenService:Create(panel, TweenInfo.new(0.3), {Position = goal}):Play()
+		open = not open
+	end)
+end
+
+------------------------------------------------
+-- INFINITE JUMP
+------------------------------------------------
+UserInputService.JumpRequest:Connect(function()
+	if infJumpEnabled then
+		local char = player.Character
+		if char and char:FindFirstChild("Humanoid") then
+			char.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+		end
+	end
+end)
+
+setupGUI()
+end
+
+------------------------------------------------
+-- START
+------------------------------------------------
+createKeyGUI(function()
+	startScript()
+end)
